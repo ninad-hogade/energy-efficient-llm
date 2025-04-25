@@ -1,0 +1,205 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-config
+data:
+  training_config.yaml: |
+    # Training configuration with energy efficiency settings
+    training:
+      # Basic training parameters
+      model_name_or_path: "EleutherAI/pythia-410m"
+      dataset_name: "wikitext"
+      dataset_config_name: "wikitext-103-raw-v1"
+      max_seq_length: 512
+      per_device_train_batch_size: 4
+      gradient_accumulation_steps: 16
+      learning_rate: 5e-5
+      weight_decay: 0.01
+      num_train_epochs: 3
+      warmup_steps: 500
+      logging_steps: 100
+      evaluation_strategy: "steps"
+      eval_steps: 500
+      save_steps: 1000
+      fp16: true
+      
+      # Energy efficiency parameters
+      energy_monitoring_interval: 60
+      energy_efficiency_threshold: 0.75
+      adaptive_precision: true
+      dynamic_layer_freezing: true
+      min_active_layers: 3
+      layer_activation_threshold: 0.01
+
+    # DeepSpeed ZeRO-3 config
+    deepspeed:
+      zero_optimization:
+        stage: 3
+        offload_optimizer:
+          device: "cpu"
+          pin_memory: true
+        offload_param:
+          device: "cpu"
+          pin_memory: true
+        overlap_comm: true
+        contiguous_gradients: true
+        reduce_bucket_size: 5e7
+        stage3_prefetch_bucket_size: 5e7
+        stage3_param_persistence_threshold: 1e5
+        sub_group_size: 1e9
+        stage3_max_live_parameters: 1e9
+        stage3_max_reuse_distance: 1e9
+        stage3_gather_16bit_weights_on_model_save: true
+      
+      # Adaptive parameters for energy efficiency
+      adaptive_training:
+        enabled: true
+        energy_threshold_high: 250
+        energy_threshold_low: 150
+        initial_thread_percentage: 50
+        min_thread_percentage: 30
+        max_thread_percentage: 80
+        adaptation_cooldown: 300
+
+    # MPS configuration
+    mps:
+      enabled: true
+      initial_thread_percentage: 50
+      shared_resources: 2
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: llm-energy-efficient-training
+spec:
+  serviceName: "llm-training"
+  replicas: 6  # Reduced from 8 to 6 for better scheduling probability
+  selector:
+    matchLabels:
+      app: llm-training
+  template:
+    metadata:
+      labels:
+        app: llm-training
+      annotations:
+        nvidia.com/mps-enabled: "true"
+    spec:
+      runtimeClassName: nvidia
+      terminationGracePeriodSeconds: 120
+      containers:
+      - name: training
+        image: ninadhogade/energy-efficient-llm:latest
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+          requests:
+            memory: "64Gi"
+            cpu: "16"
+        volumeMounts:
+        - name: training-config
+          mountPath: /app/configs
+        - name: model-output
+          mountPath: /app/output
+        - name: mps-pipe-dir
+          mountPath: /tmp/nvidia-mps
+        - name: mps-log-dir
+          mountPath: /tmp/nvidia-log
+        - name: energy-stats
+          mountPath: /app/energy_stats
+        env:
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: "compute,utility"
+        - name: CUDA_MPS_PIPE_DIRECTORY
+          value: "/tmp/nvidia-mps"
+        - name: CUDA_MPS_LOG_DIRECTORY
+          value: "/tmp/nvidia-log"
+        - name: CUDA_MPS_ACTIVE_THREAD_PERCENTAGE
+          value: "50"
+        - name: NCCL_P2P_DISABLE
+          value: "1"
+        - name: MASTER_ADDR
+          value: "$(LLM_ENERGY_EFFICIENT_TRAINING_0_SERVICE_HOST)"
+        - name: MASTER_PORT
+          value: "29500"
+        - name: WORLD_SIZE
+          value: "6"  # Updated to match replica count
+        - name: RANK
+          # Using hostname suffix which is reliable for StatefulSets
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: LOCAL_RANK
+          value: "0"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: nvidia.com/gpu.present
+                operator: Exists
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - llm-training
+              topologyKey: "kubernetes.io/hostname"
+      
+      # Add a toleration for GPU nodes
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      volumes:
+      - name: training-config
+        configMap:
+          name: training-config
+      - name: mps-pipe-dir
+        hostPath:
+          path: /tmp/nvidia-mps
+          type: Directory
+      - name: mps-log-dir
+        hostPath:
+          path: /tmp/nvidia-log
+          type: Directory
+      - name: energy-stats
+        hostPath:
+          path: /tmp/energy-stats
+          type: DirectoryOrCreate
+      - name: model-output
+        persistentVolumeClaim:
+          claimName: model-output-pvc
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-energy-efficient-training-0
+spec:
+  selector:
+    statefulset.kubernetes.io/pod-name: llm-energy-efficient-training-0
+  ports:
+  - name: nccl
+    port: 29500
+    targetPort: 29500
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-output-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi

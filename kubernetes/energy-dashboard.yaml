@@ -1,0 +1,240 @@
+# kubernetes/energy-dashboard.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: energy-efficiency-dashboard
+  namespace: monitoring
+data:
+  energy-efficiency.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "gnetId": null,
+      "graphTooltip": 0,
+      "id": 2,
+      "links": [],
+      "panels": [
+        {
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {},
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 200
+                  }
+                ]
+              },
+              "unit": "watt"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "options": {
+            "reduceOptions": {
+              "calcs": ["mean"],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "pluginVersion": "7.0.3",
+          "targets": [
+            {
+              "expr": "sum(DCGM_FI_DEV_POWER_USAGE)",
+              "instant": true,
+              "interval": "",
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Total GPU Power Usage",
+          "type": "gauge"
+        },
+        {
+          "datasource": "Prometheus",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {},
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 0.5
+                  }
+                ]
+              },
+              "unit": "perKwh"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "options": {
+            "reduceOptions": {
+              "calcs": ["mean"],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "pluginVersion": "7.0.3",
+          "targets": [
+            {
+              "expr": "training_energy_efficiency{phase=\"training\"}",
+              "instant": true,
+              "interval": "",
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Training Energy Efficiency",
+          "type": "gauge"
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "fieldConfig": {"defaults": {"custom": {}},"overrides": []},
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "hiddenSeries": false,
+          "id": 3,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {"dataLinks": []},
+          "percentage": false,
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "training_power_saved",
+              "interval": "",
+              "legendFormat": "{{technique}}",
+              "refId": "A"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "Power Saved by Technique",
+          "tooltip": {"shared": true,"sort": 0,"value_type": "individual"},
+          "type": "graph",
+          "xaxis": {"buckets": null,"mode": "time","name": null,"show": true,"values": []},
+          "yaxes": [
+            {"format": "watt","label": null,"logBase": 1,"max": null,"min": null,"show": true},
+            {"format": "short","label": null,"logBase": 1,"max": null,"min": null,"show": true}
+          ],
+          "yaxis": {"align": false,"alignLevel": null}
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "Prometheus",
+          "description": "",
+          "fieldConfig": {"defaults": {"custom": {}},"overrides": []},
+          "fill": 1,
+          "fillGradient": 0,
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "hiddenSeries": false,
+          "id": 4,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "nullPointMode": "null",
+          "options": {"dataLinks": []},
+          "percentage": false,
+          "pointradius": 2,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "training_mps_thread_percentage",
+              "interval": "",
+              "legendFormat": "GPU {{gpu}}",
+              "refId": "A"
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeRegions": [],
+          "timeShift": null,
+          "title": "MPS Thread Percentages",
+          "tooltip": {"shared": true,"sort": 0,"value_type": "individual"},
+          "type": "graph",
+          "xaxis": {"buckets": null,"mode": "time","name": null,"show": true,"values": []},
+          "yaxes": [
+            {"format": "percent","label": null,"logBase": 1,"max": 100,"min": 0,"show": true},
+            {"format": "short","label": null,"logBase": 1,"max": null,"min": null,"show": true}
+          ],
+          "yaxis": {"align": false,"alignLevel": null}
+        }
+      ],
+      "refresh": "10s",
+      "schemaVersion": 25,
+      "style": "dark",
+      "tags": ["energy", "gpu", "training"],
+      "templating": {"list": []},
+      "time": {"from": "now-1h","to": "now"},
+      "timepicker": {},
+      "timezone": "",
+      "title": "LLM Training Energy Efficiency",
+      "uid": "energy-efficiency",
+      "version": 1
+    }
