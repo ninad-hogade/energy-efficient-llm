@@ -35,7 +35,7 @@ class EnergyMonitor:
         
     def _load_config(self, config_path: str) -> dict:
         try:
-            # Try to load as JSON first
+            # Try to load configuration
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
                     if config_path.endswith('.json'):
@@ -66,18 +66,6 @@ class EnergyMonitor:
             adaptive_training['energy_threshold_high'] = 250
         if 'energy_threshold_low' not in adaptive_training:
             adaptive_training['energy_threshold_low'] = 150
-        if 'min_thread_percentage' not in adaptive_training:
-            adaptive_training['min_thread_percentage'] = 30
-        if 'max_thread_percentage' not in adaptive_training:
-            adaptive_training['max_thread_percentage'] = 80
-            
-        if 'mps' not in config:
-            config['mps'] = {}
-            
-        if 'enabled' not in config['mps']:
-            config['mps']['enabled'] = True
-        if 'initial_thread_percentage' not in config['mps']:
-            config['mps']['initial_thread_percentage'] = 50
             
         return config
     
@@ -96,7 +84,6 @@ class EnergyMonitor:
             mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
             
             # Estimate energy efficiency (GFLOPS/Watt) - simplified calculation
-            # In a real implementation, you'd use a more accurate method
             energy_efficiency = (util.gpu * 0.1) / max(power_usage, 1)  
             
             stats[i] = GPUStats(
@@ -109,46 +96,6 @@ class EnergyMonitor:
                 energy_efficiency=energy_efficiency
             )
         return stats
-    
-    def _adjust_mps_settings(self, stats: Dict[int, GPUStats]):
-        """Adjust MPS thread allocation based on energy efficiency metrics"""
-        for gpu_idx, gpu_stat in stats.items():
-            current_efficiency = gpu_stat.energy_efficiency
-            high_threshold = self.config['adaptive_training']['energy_threshold_high']
-            low_threshold = self.config['adaptive_training']['energy_threshold_low']
-            
-            # Current MPS thread percentage
-            try:
-                with open(f"/tmp/nvidia-mps/gpu{gpu_idx}_thread_percentage", "r") as f:
-                    current_percentage = int(f.read().strip())
-            except:
-                current_percentage = self.config['mps']['initial_thread_percentage']
-            
-            new_percentage = current_percentage
-            
-            # Power too high - reduce threads
-            if gpu_stat.power_usage > high_threshold:
-                new_percentage = max(
-                    self.config['adaptive_training']['min_thread_percentage'],
-                    current_percentage - 5
-                )
-                logger.info(f"GPU {gpu_idx} power too high ({gpu_stat.power_usage}W), reducing threads to {new_percentage}%")
-            
-            # Power too low - increase threads for better utilization
-            elif gpu_stat.power_usage < low_threshold and gpu_stat.utilization < 70:
-                new_percentage = min(
-                    self.config['adaptive_training']['max_thread_percentage'],
-                    current_percentage + 5
-                )
-                logger.info(f"GPU {gpu_idx} power too low ({gpu_stat.power_usage}W), increasing threads to {new_percentage}%")
-            
-            # Update MPS thread percentage if changed
-            if new_percentage != current_percentage:
-                try:
-                    with open(f"/tmp/nvidia-mps/gpu{gpu_idx}_thread_percentage", "w") as f:
-                        f.write(str(new_percentage))
-                except Exception as e:
-                    logger.error(f"Failed to update MPS thread percentage: {e}")
     
     def _monitoring_loop(self):
         while self.should_run:
@@ -165,10 +112,6 @@ class EnergyMonitor:
                         for idx, stat in stats.items()
                     }
                     json.dump(serializable_stats, f, indent=2)
-                
-                # Adjust MPS settings based on energy metrics
-                if self.config['adaptive_training']['enabled']:
-                    self._adjust_mps_settings(stats)
                 
                 # Print summary
                 total_power = sum(stat.power_usage for stat in stats.values())

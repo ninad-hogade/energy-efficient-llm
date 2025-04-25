@@ -51,21 +51,12 @@ data:
         stage3_max_reuse_distance: 1e9
         stage3_gather_16bit_weights_on_model_save: true
       
-      # Adaptive parameters for energy efficiency
+      # Simple adaptive parameters for energy efficiency
       adaptive_training:
         enabled: true
         energy_threshold_high: 250
         energy_threshold_low: 150
-        initial_thread_percentage: 50
-        min_thread_percentage: 30
-        max_thread_percentage: 80
         adaptation_cooldown: 300
-
-    # MPS configuration
-    mps:
-      enabled: true
-      initial_thread_percentage: 50
-      shared_resources: 2
 
 ---
 apiVersion: apps/v1
@@ -74,7 +65,7 @@ metadata:
   name: llm-energy-efficient-training
 spec:
   serviceName: "llm-training"
-  replicas: 6  # Reduced from 8 to 6 for better scheduling probability
+  replicas: 6
   selector:
     matchLabels:
       app: llm-training
@@ -82,8 +73,6 @@ spec:
     metadata:
       labels:
         app: llm-training
-      annotations:
-        nvidia.com/mps-enabled: "true"
     spec:
       runtimeClassName: nvidia
       terminationGracePeriodSeconds: 120
@@ -101,10 +90,6 @@ spec:
           mountPath: /app/configs
         - name: model-output
           mountPath: /app/output
-        - name: mps-pipe-dir
-          mountPath: /tmp/nvidia-mps
-        - name: mps-log-dir
-          mountPath: /tmp/nvidia-log
         - name: energy-stats
           mountPath: /app/energy_stats
         env:
@@ -112,22 +97,13 @@ spec:
           value: "all"
         - name: NVIDIA_DRIVER_CAPABILITIES
           value: "compute,utility"
-        - name: CUDA_MPS_PIPE_DIRECTORY
-          value: "/tmp/nvidia-mps"
-        - name: CUDA_MPS_LOG_DIRECTORY
-          value: "/tmp/nvidia-log"
-        - name: CUDA_MPS_ACTIVE_THREAD_PERCENTAGE
-          value: "50"
-        - name: NCCL_P2P_DISABLE
-          value: "1"
         - name: MASTER_ADDR
           value: "$(LLM_ENERGY_EFFICIENT_TRAINING_0_SERVICE_HOST)"
         - name: MASTER_PORT
           value: "29500"
         - name: WORLD_SIZE
-          value: "6"  # Updated to match replica count
+          value: "6"
         - name: RANK
-          # Using hostname suffix which is reliable for StatefulSets
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
@@ -151,25 +127,14 @@ spec:
                   values:
                   - llm-training
               topologyKey: "kubernetes.io/hostname"
-      
-      # Add a toleration for GPU nodes
       tolerations:
       - key: nvidia.com/gpu
         operator: Exists
         effect: NoSchedule
-      
       volumes:
       - name: training-config
         configMap:
           name: training-config
-      - name: mps-pipe-dir
-        hostPath:
-          path: /tmp/nvidia-mps
-          type: Directory
-      - name: mps-log-dir
-        hostPath:
-          path: /tmp/nvidia-log
-          type: Directory
       - name: energy-stats
         hostPath:
           path: /tmp/energy-stats

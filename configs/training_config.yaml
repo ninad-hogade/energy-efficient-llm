@@ -1,7 +1,7 @@
 # Training configuration with energy efficiency settings
 training:
   # Basic training parameters
-  model_name_or_path: "EleutherAI/pythia-410m"  # Start with smaller model for testing
+  model_name_or_path: "EleutherAI/pythia-410m"
   dataset_name: "wikitext"
   dataset_config_name: "wikitext-103-raw-v1"
   max_seq_length: 512
@@ -18,12 +18,12 @@ training:
   fp16: true
   
   # Energy efficiency parameters
-  energy_monitoring_interval: 60  # seconds
-  energy_efficiency_threshold: 0.75  # ratio of peak efficiency
+  energy_monitoring_interval: 60
+  energy_efficiency_threshold: 0.75
   adaptive_precision: true
   dynamic_layer_freezing: true
   min_active_layers: 3
-  layer_activation_threshold: 0.01  # gradient magnitude threshold
+  layer_activation_threshold: 0.01
 
 # DeepSpeed ZeRO-3 config
 deepspeed:
@@ -45,18 +45,9 @@ deepspeed:
     stage3_max_reuse_distance: 1e9
     stage3_gather_16bit_weights_on_model_save: true
   
-  # Adaptive parameters for energy efficiency
+  # Simple adaptive parameters for energy efficiency
   adaptive_training:
     enabled: true
     energy_threshold_high: 250  # watts
     energy_threshold_low: 150   # watts
-    initial_thread_percentage: 50
-    min_thread_percentage: 30
-    max_thread_percentage: 80
     adaptation_cooldown: 300    # seconds
-
-# MPS configuration
-mps:
-  enabled: true
-  initial_thread_percentage: 50
-  shared_resources: 2  # Number of training processes per GPU
